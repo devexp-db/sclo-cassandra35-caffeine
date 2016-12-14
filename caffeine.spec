@@ -1,33 +1,39 @@
+%{?scl:%scl_package caffeine}
+%{!?scl:%global pkg_name %{name}}
+
 # depend on guava 20.0 RHBZ#1307246
 %bcond_with guava
 %bcond_with jcache
 
-Name:		caffeine
+Name:		%{?scl_prefix}caffeine
 Version:	2.3.5
-Release:	1%{?dist}
+Release:	2%{?dist}
 Summary:	High performance, near optimal caching library based on Java 8
-
 License:	ASL 2.0
-URL:		https://github.com/ben-manes/%{name}
-Source0:	https://github.com/ben-manes/%{name}/archive/v%{version}/%{name}-%{version}.tar.gz
-Source1:	https://repo1.maven.org/maven2/com/github/ben-manes/%{name}/%{name}/%{version}/%{name}-%{version}.pom
-Source2:	%{name}-gen.pom
+URL:		https://github.com/ben-manes/%{pkg_name}
+Source0:	https://github.com/ben-manes/%{pkg_name}/archive/v%{version}/%{pkg_name}-%{version}.tar.gz
+Source1:	https://repo1.maven.org/maven2/com/github/ben-manes/%{pkg_name}/%{pkg_name}/%{version}/%{pkg_name}-%{version}.pom
+Source2:	%{pkg_name}-gen.pom
 %if %{with guava}
-Source3:        http://repo1.maven.org/maven2/com/github/ben-manes/%{name}/guava/%{version}/guava-%{version}.pom
+Source3:        http://repo1.maven.org/maven2/com/github/ben-manes/%{pkg_name}/guava/%{version}/guava-%{version}.pom
 %endif
 %if %{with jcache}
-Source4:        http://repo1.maven.org/maven2/com/github/ben-manes/%{name}/jcache/%{version}/jcache-%{version}.pom
+Source4:        http://repo1.maven.org/maven2/com/github/ben-manes/%{pkg_name}/jcache/%{version}/jcache-%{version}.pom
 %endif
 
 BuildArch:	noarch
 
-BuildRequires:	maven-local
-BuildRequires:	mvn(com.google.code.findbugs:jsr305)
-BuildRequires:	mvn(com.google.guava:guava)
-BuildRequires:	mvn(org.apache.commons:commons-lang3)
-BuildRequires:	mvn(org.codehaus.mojo:exec-maven-plugin)
-BuildRequires:	mvn(org.apache.felix:maven-bundle-plugin)
-BuildRequires:	mvn(com.squareup:javapoet)
+# nasty hack TODO
+BuildRequires:	java-1.8.0-openjdk-devel
+Requires:	java-1.8.0-openjdk-devel
+BuildRequires:	%{?scl_prefix_maven}maven-local
+BuildRequires:	%{?scl_prefix_maven}jsr-305
+BuildRequires:	%{?scl_prefix_maven}apache-commons-lang3
+BuildRequires:	%{?scl_prefix_maven}exec-maven-plugin
+BuildRequires:	%{?scl_prefix_maven}maven-plugin-bundle
+BuildRequires:	%{?scl_prefix}guava
+BuildRequires:	%{?scl_prefix}javapoet
+%{?scl:Requires: %scl_runtime}
 
 %description
 A Cache is similar to ConcurrentMap, but not quite the same. The most
@@ -71,7 +77,7 @@ Summary:	Javadoc for %{name}
 This package contains the API documentation for %{name}.
 
 %prep
-%setup -q
+%setup -q -n %{pkg_name}-%{version}
 
 find -name "*.jar" -print -delete
 
@@ -85,20 +91,20 @@ cat > pom.xml << EOF
 
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.github.ben-manes.caffeine</groupId>
-  <artifactId>%{name}-parent</artifactId>
+  <artifactId>%{pkg_name}-parent</artifactId>
   <version>%{version}</version>
   <packaging>pom</packaging>
   <name>Caffeine Parent</name>
   <modules>
-    <module>%{name}</module>
+    <module>%{pkg_name}</module>
     <!-- module>simulator</module -->
     <!-- module>examples/write-behind-rxjava</module -->
   </modules>
 </project>
 EOF
 
-cp -p %{SOURCE1} %{name}/pom.xml
-cp -p %{SOURCE2} %{name}/gen.pom
+cp -p %{SOURCE1} %{pkg_name}/pom.xml
+cp -p %{SOURCE2} %{pkg_name}/gen.pom
 
 %if %{with guava}
 cp -p %{SOURCE3} guava/pom.xml
@@ -107,6 +113,7 @@ cp -p %{SOURCE3} guava/pom.xml
 cp -p %{SOURCE4} jcache/pom.xml
 %endif
 
+%{?scl:scl enable %{scl_maven} %{scl} - << "EOF"}
 (
  for p in guava \
   jcache; do
@@ -162,7 +169,7 @@ done
 
 %pom_xpath_inject "pom:project" "<properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-  </properties>" %{name}
+  </properties>" %{pkg_name}
 
 %pom_xpath_inject "pom:project" "
   <build>
@@ -180,10 +187,10 @@ done
         </plugin>
       </plugins>
     </pluginManagement>
-  </build>" %{name}
+  </build>" %{pkg_name}
 
-%pom_xpath_inject "pom:project" "<packaging>bundle</packaging>" %{name}
-%pom_add_plugin org.apache.felix:maven-bundle-plugin %{name} "
+%pom_xpath_inject "pom:project" "<packaging>bundle</packaging>" %{pkg_name}
+%pom_add_plugin org.apache.felix:maven-bundle-plugin %{pkg_name} "
     <extensions>true</extensions>
       <configuration>
         <excludeDependencies>true</excludeDependencies>
@@ -204,18 +211,20 @@ done
  </executions>"
 
 # remove missing dependency
-%pom_remove_dep com.google.errorprone:error_prone_annotations %{name}
+%pom_remove_dep com.google.errorprone:error_prone_annotations %{pkg_name}
 
 %if %{with jcache}
 # Use open source JSR-107 apis
 %pom_change_dep javax.cache:cache-api org.apache.geronimo.specs:geronimo-jcache_1.0_spec jcache
 %endif
 
-%mvn_package :%{name}-parent __noinstall
+%mvn_package :%{pkg_name}-parent __noinstall
+%{?scl:EOF}
 
 %build
+%{?scl:scl enable %{scl_maven} %{scl} - << "EOF"}
 (
- cd %name
+ cd %{pkg_name}
  for class in com.github.benmanes.caffeine.cache.LocalCacheFactoryGenerator \
          com.github.benmanes.caffeine.cache.NodeFactoryGenerator; do
    xmvn -B --offline -f gen.pom compile exec:java -Dexec.mainClass=$class -Dexec.args=src/main/java
@@ -224,11 +233,14 @@ done
 
 # tests are skipped due to missing dependencies
 %mvn_build -sf
+%{?scl:EOF}
 
 %install
+%{?scl:scl enable %{scl_maven} %{scl} - << "EOF"}
 %mvn_install
+%{?scl:EOF}
 
-%files -f .mfiles-%{name}
+%files -f .mfiles-%{pkg_name}
 %doc README.md
 %license LICENSE
 
@@ -244,5 +256,8 @@ done
 %license LICENSE
 
 %changelog
+* Tue Nov 29 2016 Tomas Repik <trepik@redhat.com> - 2.3.5-2
+- scl conversion
+
 * Mon Nov 21 2016 Tomas Repik <trepik@redhat.com> - 2.3.5-1
 - initial package
